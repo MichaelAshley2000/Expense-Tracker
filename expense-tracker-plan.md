@@ -1,5 +1,361 @@
 # 🎯 Smart Expense Tracker - Implementation Plan
 
+## 🎨 System Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           FRONTEND (React + Vite)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────────────┐  │
+│  │  Dashboard  │  │ AddExpense   │  │   Charts   │  │ QueryInterface   │  │
+│  │             │  │              │  │            │  │                  │  │
+│  │ • Stats     │  │ • Upload img │  │ • Pie      │  │ • NL queries     │  │
+│  │ • Insights  │  │ • Text input │  │ • Bar      │  │ • Chat response  │  │
+│  │ • Cards     │  │ • Category   │  │ • Line     │  │                  │  │
+│  └─────────────┘  └──────────────┘  └────────────┘  └──────────────────┘  │
+│         │                  │                │                   │           │
+│         └──────────────────┴────────────────┴───────────────────┘           │
+│                                     │                                       │
+│                            ┌────────▼────────┐                              │
+│                            │   API Service   │                              │
+│                            │   (Axios)       │                              │
+│                            └────────┬────────┘                              │
+└─────────────────────────────────────┼───────────────────────────────────────┘
+                                      │
+                                 HTTP/REST
+                                      │
+┌─────────────────────────────────────▼───────────────────────────────────────┐
+│                          BACKEND (Jac Server)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────────────────── WALKERS (API) ───────────────────────────┐  │
+│  │                                                                       │  │
+│  │  add_expense    get_dashboard_data    query_expenses                 │  │
+│  │       │                  │                    │                      │  │
+│  │       └──────────────────┴────────────────────┘                      │  │
+│  │                          │                                           │  │
+│  └──────────────────────────┼───────────────────────────────────────────┘  │
+│                             │                                              │
+│  ┌──────────────────────────▼──────────────────────────────────────────┐  │
+│  │                    JAC GRAPH DATABASE (OSP)                          │  │
+│  │                                                                      │  │
+│  │              ┌─────┐                                                 │  │
+│  │              │Root │                                                 │  │
+│  │              └──┬──┘                                                 │  │
+│  │                 │                                                    │  │
+│  │            ┌────▼────┐                                               │  │
+│  │            │  User   │                                               │  │
+│  │            └────┬────┘                                               │  │
+│  │                 │                                                    │  │
+│  │        ┌────────┴─────────┐                                          │  │
+│  │        │                  │                                          │  │
+│  │   ┌────▼─────┐      ┌────▼────────┐                                 │  │
+│  │   │ Settings │      │  Category   │ (FOOD, TRANSPORT, etc.)         │  │
+│  │   │          │      │  (x9)       │                                 │  │
+│  │   │ • currency│     └────┬────────┘                                 │  │
+│  │   │ • alerts  │          │                                          │  │
+│  │   └──────────┘           │                                          │  │
+│  │                     ┌────▼────────┐                                 │  │
+│  │                     │  Expense    │ (amount, merchant, date...)     │  │
+│  │                     │  (many)     │                                 │  │
+│  │                     └─────────────┘                                 │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────── AI PROCESSING ─────────────────────────────┐  │
+│  │                                                                      │  │
+│  │  ┌──────────┐         ┌───────────┐         ┌──────────────────┐   │  │
+│  │  │  byLLM   │         │   mtllm   │         │  Auto-Categorize │   │  │
+│  │  │          │         │           │         │                  │   │  │
+│  │  │ Text → $ │         │ Image → $ │         │  Expense → Cat   │   │  │
+│  │  │ merchant │         │ merchant  │         │                  │   │  │
+│  │  │ date     │         │ items     │         │  (gpt-4o-mini)   │   │  │
+│  │  └──────────┘         └───────────┘         └──────────────────┘   │  │
+│  │                                                                      │  │
+│  │  Model: gpt-4o-mini / claude-3-5-haiku                              │  │
+│  │                                                                      │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                    ┌─────────────────┴─────────────────┐
+                    │                                   │
+          ┌─────────▼────────┐              ┌───────────▼──────────┐
+          │ Currency API     │              │   OpenAI API         │
+          │ (exchangerate.io)│              │   (gpt-4o-mini)      │
+          │                  │              │                      │
+          │ Real-time rates  │              │   AI extraction      │
+          └──────────────────┘              └──────────────────────┘
+```
+
+## 🔄 Data Flow Diagrams
+
+### **Add Expense Flow (Image)**
+```
+User uploads receipt
+         │
+         ▼
+  [Frontend: AddExpense]
+         │
+         ▼ HTTP POST /add_expense
+  [Walker: add_expense]
+         │
+         ▼
+    [mtllm] ──────► GPT-4o-mini
+         │           (Vision API)
+         │◄──────────┘
+         │ Extract: amount, merchant, items, tax, date
+         ▼
+  [auto_categorize]
+         │
+         ▼ byLLM
+    Assign category (FOOD, TRANSPORT, etc.)
+         │
+         ▼
+  [Currency conversion]
+         │
+         ▼ Exchange API
+    Convert to USD
+         │
+         ▼
+  [Create Expense node] ──► Graph: User → Category → Expense
+         │
+         ▼ Response
+  [Frontend shows success + extracted data]
+```
+
+### **Natural Language Query Flow**
+```
+User: "How much did I spend on food last month?"
+         │
+         ▼
+  [QueryInterface]
+         │
+         ▼ HTTP POST /query_expenses
+  [Walker: query_expenses]
+         │
+         ▼
+    [byLLM with ReAct]
+         │
+    Parse intent:
+    • Category: FOOD
+    • Time range: Last month
+    • Aggregation: SUM
+         │
+         ▼
+  [Graph traversal]
+    Navigate: User → Category(FOOD) → Expenses
+    Filter by date range
+    Calculate SUM(amount_usd)
+         │
+         ▼ Response
+  [Frontend displays: "$342.56 on food last month"]
+```
+
+### **Dashboard Data Flow**
+```
+User opens Dashboard
+         │
+         ▼
+  [Dashboard component]
+         │
+         ▼ HTTP GET /dashboard_data
+  [Walker: get_dashboard_data]
+         │
+         ├──► Traverse all Categories
+         │    ├─► Sum expenses per category (Pie chart)
+         │    └─► Group by month (Bar chart - 6 months)
+         │
+         ├──► Calculate total spending (current month)
+         │
+         ├──► Find biggest category (Insight)
+         │
+         └──► Compare to previous month (% change)
+         │
+         ▼ JSON Response
+  [Frontend renders:
+    • Stats cards
+    • Pie chart (Recharts)
+    • Bar chart (6-month trend)
+    • Insight card]
+```
+
+## 📊 Mermaid Diagrams
+
+### **System Architecture (Mermaid)**
+```mermaid
+graph TB
+    subgraph Frontend["🎨 FRONTEND (React + Vite)"]
+        Dashboard[Dashboard<br/>Stats, Insights, Cards]
+        AddExpense[AddExpense<br/>Upload img, Text input]
+        Charts[Charts<br/>Pie, Bar, Line]
+        QueryInterface[QueryInterface<br/>NL queries, Chat]
+        APIService[API Service<br/>Axios]
+
+        Dashboard --> APIService
+        AddExpense --> APIService
+        Charts --> APIService
+        QueryInterface --> APIService
+    end
+
+    subgraph Backend["⚙️ BACKEND (Jac Server)"]
+        subgraph Walkers["Walkers (API Endpoints)"]
+            W1[add_expense]
+            W2[get_dashboard_data]
+            W3[query_expenses]
+            W4[get_expenses_by_category]
+        end
+
+        subgraph Graph["JAC Graph (OSP)"]
+            Root((Root))
+            User[User]
+            Settings[Settings<br/>currency, alerts]
+
+            Cat1[Category: FOOD]
+            Cat2[Category: TRANSPORT]
+            Cat3[Category: SHOPPING]
+            CatN[Category: OTHER...]
+
+            Exp1[Expense 1]
+            Exp2[Expense 2]
+            Exp3[Expense 3]
+
+            Root --> User
+            User --> Settings
+            User --> Cat1
+            User --> Cat2
+            User --> Cat3
+            User --> CatN
+            Cat1 --> Exp1
+            Cat1 --> Exp2
+            Cat2 --> Exp3
+        end
+
+        subgraph AI["🤖 AI Processing"]
+            byLLM[byLLM<br/>Text extraction]
+            mtllm[mtllm<br/>Image OCR]
+            AutoCat[Auto-Categorize<br/>gpt-4o-mini]
+        end
+
+        W1 --> mtllm
+        W1 --> byLLM
+        W1 --> AutoCat
+        W3 --> byLLM
+    end
+
+    subgraph External["🌐 External APIs"]
+        OpenAI[OpenAI API<br/>gpt-4o-mini]
+        CurrencyAPI[Currency API<br/>exchangerate.io]
+    end
+
+    APIService -->|HTTP/REST| Walkers
+    AI --> OpenAI
+    Walkers --> CurrencyAPI
+    Walkers --> Graph
+
+    style Frontend fill:#e3f2fd
+    style Backend fill:#f3e5f5
+    style AI fill:#fff3e0
+    style External fill:#e8f5e9
+```
+
+### **Add Expense Flow (Mermaid)**
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant W as Walker: add_expense
+    participant AI as mtllm/byLLM
+    participant LLM as GPT-4o-mini
+    participant CAT as auto_categorize
+    participant CUR as Currency API
+    participant G as Jac Graph
+
+    U->>FE: Upload receipt image
+    FE->>W: POST /add_expense {image}
+    W->>AI: Process image
+    AI->>LLM: Extract data
+    LLM-->>AI: {amount, merchant, items, tax, date}
+    AI-->>W: Extracted data
+    W->>CAT: Categorize expense
+    CAT->>LLM: Classify category
+    LLM-->>CAT: FOOD
+    CAT-->>W: Category assigned
+    W->>CUR: Convert currency
+    CUR-->>W: amount_usd
+    W->>G: Create Expense node
+    G-->>W: Node created
+    W-->>FE: Success + data
+    FE-->>U: Display extracted expense
+```
+
+### **Natural Language Query Flow (Mermaid)**
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as QueryInterface
+    participant W as Walker: query_expenses
+    participant AI as byLLM (ReAct)
+    participant LLM as GPT-4o-mini
+    participant G as Jac Graph
+
+    U->>FE: "How much on food last month?"
+    FE->>W: POST /query {query}
+    W->>AI: Parse query
+    AI->>LLM: Extract intent
+    LLM-->>AI: {category: FOOD, range: last_month, op: SUM}
+    AI-->>W: Parsed intent
+    W->>G: Navigate User→Category(FOOD)→Expenses
+    W->>G: Filter by date range
+    W->>G: SUM(amount_usd)
+    G-->>W: $342.56
+    W-->>FE: Response with amount
+    FE-->>U: "$342.56 on food last month"
+```
+
+### **Graph Structure (Mermaid)**
+```mermaid
+graph LR
+    Root((Root))
+    User[User<br/>name, email]
+    Settings[Settings<br/>currency: USD<br/>alerts: true]
+
+    Food[Category<br/>FOOD]
+    Transport[Category<br/>TRANSPORT]
+    Shopping[Category<br/>SHOPPING]
+    Other[Category<br/>OTHER...]
+
+    E1[Expense<br/>$45.23<br/>Starbucks<br/>2024-01-15]
+    E2[Expense<br/>$89.50<br/>Whole Foods<br/>2024-01-18]
+    E3[Expense<br/>$12.00<br/>Uber<br/>2024-01-16]
+    E4[Expense<br/>$199.99<br/>Amazon<br/>2024-01-20]
+
+    Root --> User
+    User --> Settings
+    User --> Food
+    User --> Transport
+    User --> Shopping
+    User --> Other
+
+    Food --> E1
+    Food --> E2
+    Transport --> E3
+    Shopping --> E4
+
+    style Root fill:#ffeb3b
+    style User fill:#4caf50
+    style Settings fill:#2196f3
+    style Food fill:#ff9800
+    style Transport fill:#9c27b0
+    style Shopping fill:#f44336
+    style Other fill:#607d8b
+    style E1 fill:#e0e0e0
+    style E2 fill:#e0e0e0
+    style E3 fill:#e0e0e0
+    style E4 fill:#e0e0e0
+```
+
 ## 📁 Project Structure
 ```
 expense-tracker/
