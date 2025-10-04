@@ -39,7 +39,7 @@ node User {
 
 node Settings {
     has currency: int;
-    has budget_alerts: Currency = Currency.USD;
+    has budget_alerts: bool = true;
     has monthly_budget: float = 0.0;
 }
 
