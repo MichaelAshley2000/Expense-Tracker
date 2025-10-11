@@ -117,6 +117,156 @@ walker add_expense {
                 target_category = cat;
                 break;
             }
+        };
+        if not target_category {
+            # Default to 'OTHER' category if not found
+            for cat in [-->](`?Category) {
+                if cat.category_type == ExpenseCategory.OTHER {
+                    target_category = cat;
+                    break;
+                }
+            };
+        };
+
+        # Convert amount to USD if necessary (placeholder logic)
+        amount_usd = self.amount;
+
+        # Create expense node
+        expense_date = self.date if self.date else get_current_date();
+        new_expense = target_category ++> Expense(
+            amount = self.amount,
+            currency = Currency[self.currency] if self.currency in Currency else Currency.USD,
+            amount_usd = amount_usd,
+            merchant = self.merchant,
+            date = expense_date,
+            created_at = get_current_datetime()
+        );
+
+        report {
+            "message": "Expense added successfully",
+            "expense_id": new_expense.id,
+            "amount": new_expense.amount,
+            "currency": new_expense.currency,
+            "category": target_category.name,
+            "date": new_expense.date
+        };
+    }
+}
+
+walker get_dashboard_data {
+    """Retrieve dashboard data including total expenses and category breakdown"""
+
+    can fetch_data with `root entry {
+        # Navigate to user node
+        visit [-->](`?User);
+    }
+
+    can calculate_data with User entry {
+        current_month = get_current_month();
+        total_expenses = 0.0;
+        category_breakdown = {};
+
+        for cat in [-->](`?Category) {
+            cat_total = 0.0;
+            cat_expenses = [];
+
+            # Sum expenses for the current month in this category
+            for exp in [-->](`?Expense) {
+                # Filter by current month
+                if exp.date.startswith(current_month) {
+                    cat_total += exp.amount_usd;
+                    total_expenses += exp.amount_usd;
+                    cat_expenses.append({
+                        "amount": exp.amount,
+                        "merchant": exp.merchant,
+                        "date": exp.date
+                    });
+                } 
+            }
+
+            if cat_total > 0.0 {
+                category_breakdown[cat.name] = {
+                    "total": cat_total,
+                    "count": len(cat_expenses),
+                    "expenses": cat_expenses
+                };
+            } 
         }
 
-  
+        # Find biggest expense category
+        biggest_category = None;
+        biggest_amount = 0.0;
+        for (cat_name, data) in category_breakdown.items() {
+            if data["total"] > biggest_amount {
+                biggest_amount = data["total"];
+                biggest_category = cat_name;
+            };
+        };
+
+        report {
+            "currency": "USD",
+            "total_expenses_usd": total_expenses,
+            "month": current_month,
+            "category_breakdown": category_breakdown,
+            "biggest_category": biggest_category,
+            "biggest_amount": biggest_amount
+        };
+    }
+}
+
+walker get_expenses_by_category {
+    """Retrieve expenses filtered by category"""
+
+    has category_name: str;
+
+    can fetch_expenses with `root entry {
+        # Navigate to user node
+        visit [-->](`?User);
+    }
+
+    can get_expenses with User entry {
+        expenses = [];
+
+        # Find the matching category node
+        for cat in [-->](`?Category) {
+            if cat.category_type.name == self.category_name.upper() {
+                # Get all expenses in this category
+                for exp in [-->](`?Expense) {
+                    expenses.append({
+                        "amount": exp.amount,
+                        "currency": exp.currency,
+                        "merchant": exp.merchant,
+                        "date": exp.date,
+                        "created_at": exp.created_at
+                    });
+                }
+                break;
+            }
+        }
+        report {
+            "category": self.category_name,
+            "count": len(expenses),
+            "expenses": expenses
+        };
+    }
+}
+
+# Utility functions
+
+def get_current_datetime() -> str {
+    # Get current date and time in ISO 8601 format
+    import from datetime {datetime};
+    return datetime.now().isoformat();
+}
+
+def get_current_date() -> str {
+    # Get current date in YYYY-MM-DD format
+    import from datetime {datetime};
+    return datetime.now().strftime("%Y-%m-%d");
+}
+
+def get_current_month() -> str {
+    # Get current month in YYYY-MM format
+    import from datetime {datetime};
+    return datetime.now().strftime("%Y-%m");
+}
