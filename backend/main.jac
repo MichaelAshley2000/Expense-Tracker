@@ -255,18 +255,18 @@ walker get_expenses_by_category {
 
 def get_current_datetime() -> str {
     # Get current date and time in ISO 8601 format
-    import from datetime {datetime};
+    import from datetime {datetime}
     return datetime.now().isoformat();
 }
 
 def get_current_date() -> str {
     # Get current date in YYYY-MM-DD format
-    import from datetime {datetime};
+    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m-%d");
 }
 
 def get_current_month() -> str {
     # Get current month in YYYY-MM format
-    import from datetime {datetime};
+    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m");
 }
