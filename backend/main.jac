@@ -39,7 +39,7 @@ node User {
 
 node Settings {
     has currency: int;
-    has budget_alerts: bool = true;
+    has budget_alerts: bool = True;
     has monthly_budget: float = 0.0;
 }
 
@@ -53,9 +53,9 @@ node Expense {
     has amount: float;
     has currency: Currency;
     has amount_usd: float;
-    has merchant: str = "";
     has date: str;
     has created_at: str;
+    has merchant: str = "";
 }
 
 # Walkers
@@ -66,16 +66,21 @@ walker init_graph {
     "Initialize the graph with default user and settings"
 
     has user_name: str = "user";
+    has password: str = "password123";
 
     can create_graph with `root entry {
         # Create user node
         user_node = here ++> User(
             name = self.user_name,
+            email = self.user_name + "@example.com",
+            password = self.password,
             created_at = get_current_datetime()
         );
 
         # Create default settings node
-        settings_node = here ++> Settings();
+        settings_node = here ++> Settings(
+            currency = Currency.USD,
+        );
 
         # Create category nodes for default categories
         for cat in ExpenseCategory {
@@ -87,7 +92,7 @@ walker init_graph {
 
         report {
             "message": "Graph initialized with default user and settings",
-            "user": user_node.name,
+            "user": user_node[0].name,
             "categories_created": len(ExpenseCategory)
         };
     }
@@ -99,10 +104,10 @@ walker add_expense {
     "Add a new expense to the graph"
 
     has amount: float;
-    has currency: str = "USD";  # Default currency
-    has merchant: str = "";
     has date: str;  # Expected format: YYYY-MM-DD
     has category_name: str;
+    has currency: str = "USD";  # Default currency
+    has merchant: str = "";
 
     can add_to_category with `root entry {
         # Navigate to user node

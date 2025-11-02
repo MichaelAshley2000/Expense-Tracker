@@ -1,20 +1,18 @@
-"""Utility functions for the Expense Tracker application
+"""Utility functions for the Smart Expense Tracker.
 
-This module includes functions for currency conversion and date handling, and other common operations.
+This module contains helper functions for currency conversion, date formatting, and budget calculations.
 """
 
 import os;
 import requests;
 import from datetime {datetime, timedelta}
 
-# Currency conversion 
+glob CURRENCY_API_KEY = os.getenv("CURRENCY_API_KEY");
+glob CURRENCY_API_URL = "https://v6.exchangerate-api.com/v6/" + CURRENCY_API_KEY + "/latest/";
 
-glob CURRENCY_API_URL = "https://api.exchangerate-api.com/v4/latest/";
+# Currency conversion utility functions
 
 def convert_currency(amount: float, from_currency: str, to_currency: str) -> float {
-    # Convert amount from one currency to another.
-
-    # If same currency, return the same amount
     if from_currency == to_currency {
         return amount;
     }
@@ -22,63 +20,33 @@ def convert_currency(amount: float, from_currency: str, to_currency: str) -> flo
     try {
         # Get exchange rates from the API
         url = CURRENCY_API_URL + from_currency;
-        response = requests.get(url, timeout=5);
+        response = requests.get(url);
 
         if response.status_code == 200 {
             data = response.json();
-            rates = data.get("rates", {});
+            rates = data["conversion_rates"];
             if to_currency in rates {
                 rate = rates[to_currency];
-                converted_amount = amount * rate;
-                return round(converted_amount,2);
-            } 
+                return round(amount * rate, 2);
+            }
         }
     } except Exception as e {
-        print("Error converting currency:", e);
+            print("Error fetching exchange rates: " + str(e));
     }
-
-    # Fallback: return original amount if conversion fails
-    return amount;
+    return amount;  # Fallback to original amount if conversion fails
 }
 
-def get_exchange_rate(from_currency: str, to_currency: str = "USD") -> float {
-    # Fetch the exchange rate from one currency to another.
-
-    if from_currency == to_currency {
-        return 1.0;
-    }
-
-    try {
-        url = CURRENCY_API_URL + from_currency;
-        response = requests.get(url, timeout=5);
-
-        if response.status_code == 200 {
-            data = response.json();
-            rates = data.get("rates", {});
-            if to_currency in rates {
-                return rates[to_currency];
-            } 
-        }
-    } except Exception as e {
-        print("Error fetching exchange rate:", e);
-    }
-
-    return 1.0;
-}
-
-# Date Time utilities
+# Date Time utility functions
 
 def parse_date(date_str: str) -> datetime {
-    # Parse a date string in YYYY-MM-DD format to a datetime object.
-    
     # Common date formats
     formats = [
-        "%Y-%m-%d", # 2025-12-31
-        "%d-%m-%Y", # 31-12-2025
-        "%m-%d-%Y", # 12-31-2025
-        "%Y/%m/%d", # 2025/12/31
-        "%d/%m/%Y", # 31/12/2025
-        "%Y.%m.%d" # 2025.12.31
+        "%Y-%m-%d", #2025-12-31
+        "%d-%m-%Y", #31-12-2025
+        "%m/%d/%Y", #12/31/2025
+        "%Y/%m/%d", #2025/12/31
+        "%d %b %Y", #31 Dec 2025
+        "%d %B %Y"  #31 December 2025
     ];
 
     for fmt in formats {
@@ -89,33 +57,36 @@ def parse_date(date_str: str) -> datetime {
         }
     }
 
-    # If no format matches, return current date
+    # If no format matches, return current date as fallback
     return get_current_date();
 }
 
 def get_current_datetime() -> str {
-    # Get current date and time in ISO 8601 format.
+    # Get current date and time in ISO 8601 format
+    import from datetime {datetime}
     return datetime.now().isoformat();
 }
 
 def get_current_date() -> str {
-    # Get current date in YYYY-MM-DD format.
+    # Get current date in YYYY-MM-DD format
+    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m-%d");
 }
 
 def get_current_month() -> str {
-    # Get current month in YYYY-MM format.
+    # Get current month in YYYY-MM format
+    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m");
 }
 
 def get_current_time() -> str {
-    # Get current time in HH:MM:SS format.
+    # Get current time in HH:MM:SS format
+    import from datetime {datetime}
     return datetime.now().strftime("%H:%M:%S");
 }
 
-def get_month_range(year: int, month: int) -> (str, str) {
-    # Get the start and end date of a given month.
-    
+def month_range(year: int, month: int) -> (str, str) {
+    # Get the start and end date of a given month
     start_date = datetime(year, month, 1);
     if month == 12 {
         end_date = datetime(year + 1, 1, 1) - timedelta(days=1);
@@ -128,13 +99,13 @@ def get_month_range(year: int, month: int) -> (str, str) {
     };
 }
 
-def get_last_n_months(n: int = 6) -> [str] {
-    # Get a list of the last n months in YYYY-MM format.
-    
+def get_last_n_months(n: int) -> list {
+    # Get a list of the last n months in 'YYYY-MM' format
     months = [];
     today = datetime.now();
     for i in range(n) {
         month = today.strftime("%Y-%m");
+        today = datetime.now();
         months.append(month);
 
         # Go back one month
@@ -145,22 +116,50 @@ def get_last_n_months(n: int = 6) -> [str] {
         }
     }
 
-    # Return in chronological order
-    return months.reverse();   
+    # Return months in chronological order
+    months = months.reverse();
+    return months;
 }
 
-def is_date_in_range(date_str: str, start_date_str: str, end_date_str: str) -> bool {
-    # Check if a date is within a specified range.
-
+def is_date_in_range(date_str: str, start_str: str, end_str: str) -> bool {
+    # Check if a date is within a given range
     try {
         date = parse_date(date_str);
-        start_date = parse_date(start_date_str);
-        end_date = parse_date(end_date_str);
-
+        start_date = parse_date(start_str);
+        end_date = parse_date(end_str);
         return start_date <= date <= end_date;
-    } except Exception as e {
-        return false;
+    } except ValueError {
+        return False;
     }
 }
 
-# Data Validation utilities
+# Data Validation Functions
+
+def is_valid_currency(currency_code: str) -> bool {
+    # Validate if the currency code is a valid ISO 4217 code
+    valid_currencies = [
+        "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "CNY", "SEK", "NZD",
+        # Add more currency codes as needed
+    ];
+    return currency_code.upper() in valid_currencies;
+}
+
+def is_positive_amount(amount: float) -> bool {
+    # Check if the amount is a positive number
+    return isinstance(amount, (int, float)) and amount > 0;
+}
+
+def format_amount(amount: float, currency_code: str) -> str {
+    # Format amount with currency symbol
+    symbols = {
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "JPY": "¥",
+        # Add more symbols as needed
+    };
+    symbol = symbols.get(currency_code.upper(), "");
+    return symbol + str(round(amount, 2));
+}
+  
+
