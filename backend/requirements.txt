@@ -2,3 +2,4 @@ jaclang
 python-dotenv
 Pillow
 requests
+openai
