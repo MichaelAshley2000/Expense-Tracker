@@ -256,22 +256,181 @@ walker get_expenses_by_category {
     }
 }
 
-# Utility functions
+walker add_expense_from_image {
+    """Add a new expense by extracting details from a receipt image"""
 
-def get_current_datetime() -> str {
-    # Get current date and time in ISO 8601 format
-    import from datetime {datetime}
-    return datetime.now().isoformat();
+    has image_path: str;
+
+    can process_image with `root entry {
+        # Navigate to user node
+        visit [-->](`?User);
+    }
+
+    can create_expense with User entry {
+        # Extract expense details from image
+        expense_data = extract_expense_from_image_file(self.image_path);
+
+        # Find the matching category node (default to OTHER)
+        target_category = None;
+        for cat in [-->](`?Category) {
+            if expense_data["category"].upper() == cat.name {
+                target_category = cat;
+                break;
+            }
+        };
+
+        if not target_category {
+            for cat in [-->](`?Category) {
+                if cat.category_type == ExpenseCategory.OTHER {
+                    target_category = cat;
+                    break;
+                }
+            };
+        };
+
+        # Create expense node
+        new_expense = target_category ++> Expense(
+            amount = expense_data["amount"],
+            currency = Currency[expense_data["currency"]] if expense_data["currency"] in Currency else Currency.USD,
+            amount_usd = expense_data["amount"],  # Placeholder for conversion logic
+            merchant = expense_data["merchant"],
+            date = expense_data["date"],
+            created_at = get_current_datetime()
+        );
+
+        report {
+            "message": "Expense added from image successfully",
+            "merchant": new_expense.merchant,
+            "amount": new_expense.amount,
+            "currency": new_expense.currency,
+            "category": target_category.name,
+            "date": new_expense.date
+        };
+    }
 }
 
-def get_current_date() -> str {
-    # Get current date in YYYY-MM-DD format
-    import from datetime {datetime}
-    return datetime.now().strftime("%Y-%m-%d");
+walker add_expense_from_text {
+    """Add a new expense by extracting details from text description"""
+
+    has description: str;
+
+    can process_text with `root entry {
+        # Navigate to user node
+        visit [-->](`?User);
+    }
+
+    can create_expense with User entry {
+        # Extract expense details from text
+        expense_data = extract_expense_from_text(self.description);
+
+        # Find the matching category node (default to OTHER)
+        target_category = None;
+        for cat in [-->](`?Category) {
+            if expense_data["category"].upper() == cat.name {
+                target_category = cat;
+                break;
+            }
+        };
+
+        if not target_category {
+            for cat in [-->](`?Category) {
+                if cat.category_type == ExpenseCategory.OTHER {
+                    target_category = cat;
+                    break;
+                }
+            };
+        };
+
+        # Create expense node
+        new_expense = target_category ++> Expense(
+            amount = expense_data["amount"],
+            currency = Currency[expense_data["currency"]] if expense_data["currency"] in Currency else Currency.USD,
+            amount_usd = expense_data["amount"],  # Placeholder for conversion logic
+            merchant = expense_data["merchant"],
+            date = expense_data["date"],
+            created_at = get_current_datetime()
+        );
+
+        report {
+            "message": "Expense added from text successfully",
+            "merchant": new_expense.merchant,
+            "amount": new_expense.amount,
+            "currency": new_expense.currency,
+            "category": target_category.name,
+            "date": new_expense.date
+        };
+    }
 }
 
-def get_current_month() -> str {
-    # Get current month in YYYY-MM format
-    import from datetime {datetime}
-    return datetime.now().strftime("%Y-%m");
+walker query_expenses {
+    """Query expenses based on natural language input"""
+
+    has query: str;
+
+    can process_query with `root entry {
+        # Navigate to user node
+        visit [-->](`?User);
+    }
+
+    can fetch_expenses with User entry {
+        # Parse query parameters
+        params = parse_natural_language_query(self.query);
+
+        filtered_expenses = [];
+
+        # Filter expenses based on parsed parameters
+        for cat in [-->](`?Category) {
+            if params.category != "" and cat.name != params.category {
+                continue;
+            };
+
+            for exp in [-->](`?Expense) {
+                # Date range filtering
+                if "start" in params.date_range and exp.date < params.date_range["start"] {
+                    continue;
+                };
+                if "end" in params.date_range and exp.date > params.date_range["end"] {
+                    continue;
+                };
+
+                # Amount comparison filtering
+                if params.amount_comparison != "" {
+                    comparison = params.amount_comparison.split(" ");
+                    if len(comparison) == 2 {
+                        operator = comparison[0];
+                        value = float(comparison[1]);
+                        if operator == ">" and not (exp.amount_usd > value) {
+                            continue;
+                        } elif operator == "<" and not (exp.amount_usd < value) {
+                            continue;
+                        } elif operator == "=" and not (exp.amount_usd == value) {
+                            continue;
+                        };
+                    };
+                };
+
+                # Merchant filtering
+                if params.merchant != "" and params.merchant.lower() not in exp.merchant.lower() {
+                    continue;
+                };
+
+                filtered_expenses.append({
+                    "amount": exp.amount,
+                    "currency": exp.currency,
+                    "merchant": exp.merchant,
+                    "date": exp.date,
+                    "created_at": exp.created_at
+                });
+            }
+        }
+
+        report {
+            "query": self.query,
+            "result_count": len(filtered_expenses),
+            "expenses": filtered_expenses
+        };
+    }
 }
+
+
+

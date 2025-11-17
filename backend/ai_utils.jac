@@ -4,7 +4,7 @@ This module provides utility functions for AI-related tasks.
  like text processing, data extraction, and natural language queries."""
 
  import os;
- import from byllm {Image, Model}
+ import from byllm.lib {Image, Model}
 
  # Global AI model configuraation
  glob llm = Model(model_name="gpt-4o-mini");
@@ -40,7 +40,7 @@ This module provides utility functions for AI-related tasks.
  sem ExpenseFromImage = "Extract expense details from receipt image including amount, currency, date, category, and merchant. Provide confidence score.";
 
 def extract_expense_from_image(
-    image: MTImage
+    image: Image
  ) -> ExpenseFromImage by llm();
 
 # Semantic object for natural language queries
@@ -59,4 +59,17 @@ def parse_natural_language_query(
     query: str
  ) -> QueryParameters by llm();
 
- 
+ def extract_expense_from_image_file(
+    image_path: str
+ ) -> dict {
+    image = Image(path=image_path);
+    expense = extract_expense_from_image(image);
+    return {
+        "amount": expense.amount,
+        "currency": expense.currency,
+        "date": expense.date,
+        "category": expense.category,
+        "merchant": expense.merchant,
+        "confidence": expense.confidence
+    };
+ }

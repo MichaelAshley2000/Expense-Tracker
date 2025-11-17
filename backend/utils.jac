@@ -6,7 +6,11 @@ This module contains helper functions for currency conversion, date formatting, 
 import os;
 import requests;
 import from datetime {datetime, timedelta}
+import from dotenv {load_dotenv}
 
+# Load environment variables from .env file
+glob env_loaded = load_dotenv();
+# Currency conversion configuration
 glob CURRENCY_API_KEY = os.getenv("CURRENCY_API_KEY");
 glob CURRENCY_API_URL = "https://v6.exchangerate-api.com/v6/" + CURRENCY_API_KEY + "/latest/";
 
@@ -63,25 +67,21 @@ def parse_date(date_str: str) -> datetime {
 
 def get_current_datetime() -> str {
     # Get current date and time in ISO 8601 format
-    import from datetime {datetime}
     return datetime.now().isoformat();
 }
 
 def get_current_date() -> str {
     # Get current date in YYYY-MM-DD format
-    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m-%d");
 }
 
 def get_current_month() -> str {
     # Get current month in YYYY-MM format
-    import from datetime {datetime}
     return datetime.now().strftime("%Y-%m");
 }
 
 def get_current_time() -> str {
     # Get current time in HH:MM:SS format
-    import from datetime {datetime}
     return datetime.now().strftime("%H:%M:%S");
 }
 
