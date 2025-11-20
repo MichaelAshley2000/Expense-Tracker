@@ -5,6 +5,13 @@ This file contains the core data structures and API endpoints for the Smart Expe
 
 import os;
 import from dotenv {load_dotenv}
+import from utils {get_current_datetime, get_current_date, get_current_month}
+import from ai_utils {
+    extract_expense_from_image_file,
+    extract_expense_from_text,
+    parse_natural_language_query,
+    process_query_response
+}
 
 # Load environment variables from .env file
 glob env_loaded = load_dotenv();
@@ -38,7 +45,7 @@ node User {
 }
 
 node Settings {
-    has currency: int;
+    has currency: Currency = Currency.USD;
     has budget_alerts: bool = True;
     has monthly_budget: float = 0.0;
 }
@@ -149,11 +156,10 @@ walker add_expense {
 
         report {
             "message": "Expense added successfully",
-            "expense_id": new_expense.id,
-            "amount": new_expense.amount,
-            "currency": new_expense.currency,
+            "amount": new_expense[0].amount,
+            "currency": new_expense[0].currency,
             "category": target_category.name,
-            "date": new_expense.date
+            "date": new_expense[0].date
         };
     }
 }
@@ -273,7 +279,7 @@ walker add_expense_from_image {
         # Find the matching category node (default to OTHER)
         target_category = None;
         for cat in [-->](`?Category) {
-            if expense_data["category"].upper() == cat.name {
+            if expense_data.category.upper() == cat.name {
                 target_category = cat;
                 break;
             }
@@ -290,21 +296,21 @@ walker add_expense_from_image {
 
         # Create expense node
         new_expense = target_category ++> Expense(
-            amount = expense_data["amount"],
-            currency = Currency[expense_data["currency"]] if expense_data["currency"] in Currency else Currency.USD,
-            amount_usd = expense_data["amount"],  # Placeholder for conversion logic
-            merchant = expense_data["merchant"],
-            date = expense_data["date"],
+            amount = expense_data.amount,
+            currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
+            amount_usd = expense_data.amount,  # Placeholder for conversion logic
+            merchant = expense_data.merchant,
+            date = expense_data.date,
             created_at = get_current_datetime()
         );
 
         report {
             "message": "Expense added from image successfully",
-            "merchant": new_expense.merchant,
-            "amount": new_expense.amount,
-            "currency": new_expense.currency,
+            "merchant": new_expense[0].merchant,
+            "amount": new_expense[0].amount,
+            "currency": new_expense[0].currency,
             "category": target_category.name,
-            "date": new_expense.date
+            "date": new_expense[0].date
         };
     }
 }
@@ -326,7 +332,7 @@ walker add_expense_from_text {
         # Find the matching category node (default to OTHER)
         target_category = None;
         for cat in [-->](`?Category) {
-            if expense_data["category"].upper() == cat.name {
+            if expense_data.category.upper() == cat.name {
                 target_category = cat;
                 break;
             }
@@ -343,21 +349,21 @@ walker add_expense_from_text {
 
         # Create expense node
         new_expense = target_category ++> Expense(
-            amount = expense_data["amount"],
-            currency = Currency[expense_data["currency"]] if expense_data["currency"] in Currency else Currency.USD,
-            amount_usd = expense_data["amount"],  # Placeholder for conversion logic
-            merchant = expense_data["merchant"],
-            date = expense_data["date"],
+            amount = expense_data.amount,
+            currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
+            amount_usd = expense_data.amount,  # Placeholder for conversion logic
+            merchant = expense_data.merchant,
+            date = expense_data.date,
             created_at = get_current_datetime()
         );
 
         report {
             "message": "Expense added from text successfully",
-            "merchant": new_expense.merchant,
-            "amount": new_expense.amount,
-            "currency": new_expense.currency,
+            "merchant": new_expense[0].merchant,
+            "amount": new_expense[0].amount,
+            "currency": new_expense[0].currency,
             "category": target_category.name,
-            "date": new_expense.date
+            "date": new_expense[0].date
         };
     }
 }
@@ -366,6 +372,7 @@ walker query_expenses {
     """Query expenses based on natural language input"""
 
     has query: str;
+    has conversation_context: dict[str, str] = {};
 
     can process_query with `root entry {
         # Navigate to user node
@@ -373,62 +380,31 @@ walker query_expenses {
     }
 
     can fetch_expenses with User entry {
-        # Parse query parameters
-        params = parse_natural_language_query(self.query);
+        # Collect all expenses
+        all_expenses = [];
 
-        filtered_expenses = [];
-
-        # Filter expenses based on parsed parameters
         for cat in [-->](`?Category) {
-            if params.category != "" and cat.name != params.category {
-                continue;
-            };
-
             for exp in [-->](`?Expense) {
-                # Date range filtering
-                if "start" in params.date_range and exp.date < params.date_range["start"] {
-                    continue;
-                };
-                if "end" in params.date_range and exp.date > params.date_range["end"] {
-                    continue;
-                };
-
-                # Amount comparison filtering
-                if params.amount_comparison != "" {
-                    comparison = params.amount_comparison.split(" ");
-                    if len(comparison) == 2 {
-                        operator = comparison[0];
-                        value = float(comparison[1]);
-                        if operator == ">" and not (exp.amount_usd > value) {
-                            continue;
-                        } elif operator == "<" and not (exp.amount_usd < value) {
-                            continue;
-                        } elif operator == "=" and not (exp.amount_usd == value) {
-                            continue;
-                        };
-                    };
-                };
-
-                # Merchant filtering
-                if params.merchant != "" and params.merchant.lower() not in exp.merchant.lower() {
-                    continue;
-                };
-
-                filtered_expenses.append({
+                all_expenses.append({
                     "amount": exp.amount,
                     "currency": exp.currency,
                     "merchant": exp.merchant,
                     "date": exp.date,
+                    "category": cat.name,
                     "created_at": exp.created_at
                 });
             }
-        }
+        };
+
+        # Parse query parameters using AI
+        parsed_query = parse_natural_language_query(self.query, self.conversation_context);
+        # Process the respone using the query parameters to filter and analyze expenses
+        ai_response = process_query_response(parsed_query, all_expenses);
 
         report {
             "query": self.query,
-            "result_count": len(filtered_expenses),
-            "expenses": filtered_expenses
-        };
+            "response": ai_response
+        }; 
     }
 }
 
