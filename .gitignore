@@ -7,14 +7,10 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -23,6 +19,8 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Virtual Environments
 .env
 .venv
 env/
@@ -30,10 +28,13 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+jac_env/
 
 # Jac
 *.jir
 .jac/
+*.session
+*.session.*.json
 
 # Node
 node_modules/
@@ -42,9 +43,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.local
+
+# Build artifacts
+build/
 dist/
 dist-ssr/
-*.local
 
 # Editor directories and files
 .vscode/*
@@ -67,4 +71,6 @@ dist-ssr/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database
 mydatabase/
