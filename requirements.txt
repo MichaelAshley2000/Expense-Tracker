@@ -1,0 +1,7 @@
+jaclang
+python-dotenv
+Pillow
+requests
+openai
+byllm
+jac-client
