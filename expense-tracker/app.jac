@@ -414,14 +414,27 @@ cl {
     def app() -> any {
         [dashboardData, setDashboardData] = useState(None);
         [query, setQuery] = useState("");
-        [queryResponse, setQueryResponse] = useState("");
+        [queryResponse, setQueryResponse] = useState(None);
         [currentForm, setCurrentForm] = useState("");
-        [imagePath, setImagePath] = useState("");
+        [imageFile, setImageFile] = useState(None);
         [textDescription, setTextDescription] = useState("");
         [amount, setAmount] = useState(0.0);
         [date, setDate] = useState("");
         [category, setCategory] = useState("");
         [merchant, setMerchant] = useState("");
+        
+        # Styles - color
+
+
+        # Styles - buttons
+
+
+        # Styles - inputs
+
+
+        # Styles - cards
+
+
 
         useEffect(lambda -> None {
             async def loadData() -> None {
@@ -436,5 +449,191 @@ cl {
             }
             loadData();
         }, []);
+
+        async def refreshDashboard() -> None {
+            dashboard_result = await root spawn get_dashboard_data();
+            if dashboard_result.reports and dashboard_result.reports.length > 0 {
+                setDashboardData(dashboard_result.reports[0]);
+            }
+        }
+
+        async def handleQuery() -> None {
+            if query.trim() == "" {
+                return;
+            }
+            query_result = await root spawn query_expenses(
+                query = query,
+                conversation_context = {}
+            );
+            if query_result.reports and query_result.reports.length > 0 {
+                setQueryResponse(query_result.reports[0].response);
+            } else {
+                setQueryResponse(None);
+            }
+        }
+
+        async def addManualExpense() -> None {
+            if amount <= 0.0 or category.trim() == "" {
+                return;
+            }
+            add_result = await root spawn add_expense(
+                amount = amount,
+                date = date,
+                category_name = category,
+                merchant = merchant,
+                currency = "USD"
+            );
+            # Clear form and refresh dashboard
+            setAmount(0.0);
+            setDate("");
+            setCategory("");
+            setMerchant("");
+            setCurrentForm("");
+
+            await refreshDashboard();
+        }
+
+        async def addExpenseFromText() -> None {
+            if textDescription.trim() == "" {
+                return;
+            }
+            add_result = await root spawn add_expense_from_text(
+                description = textDescription
+            );
+            # Clear form and refresh dashboard
+            setTextDescription("");
+            setCurrentForm("");
+
+            await refreshDashboard();
+        }
+
+        async def addExpenseFromImage() -> None {
+            if not imageFile {
+                return;
+            }
+            add_result = await root spawn add_expense_from_image(
+                image_path = imageFile.path
+            );
+            # Clear form and refresh dashboard
+            setImageFile(None);
+            setCurrentForm("");
+
+            await refreshDashboard();
+        }
+
+        def renderDashboard() -> any {
+            if not dashboardData {
+                # need to add some styling here
+                return <div>Loading dashboard...</div>;
+            }
+            
+            totalAllTime = String(dashboardData.total_expenses_usd);
+
+            totalThisMonth = "0.00";
+            if "total_current_month" in dashboardData {
+                totalThisMonth = String(dashboardData.total_current_month);
+            }
+
+            month = "Unknown";
+            if "month" in dashboardData {
+                month = dashboardData.month;
+            }
+
+            biggestCategory = "N/A";
+            if "biggest_category" in dashboardData and dashboardData.biggest_category {
+                biggestCategory = dashboardData.biggest_category;
+            }
+
+            biggestAmount = "0.00";
+            if "biggest_amount" in dashboardData {
+                biggestAmount = String(dashboardData.biggest_amount);
+            }
+
+            return <div>
+                # Add some styling here
+                <h2>Dashboard</h2>
+                <div>Total Expenses (All Time): ${totalAllTime}</div>
+                <div>Total Expenses ({month}): ${totalThisMonth}</div>
+                <div>Biggest Expense Category: {biggestCategory} (${biggestAmount})</div>
+            </div>;
+        }
+
+        def renderForms() -> any {
+            if currentForm == "manual" {
+                return <div>
+                    <h3> Manual Expense Entry </h3>
+                    <input
+                        type="number"
+                        value={amount}
+                        onChange={lambda e: any -> None { setAmount(e.target.value); }}
+                        placeholder="Amount"
+                        step="0.01"
+                    />
+                    <input
+                        type="text"
+                        value={category}
+                        onChange={lambda e: any -> None { setCategory(e.target.value); }}
+                        placeholder="Category"
+                    />
+                    <input
+                        type="text"
+                        value={merchant}
+                        onChange={lambda e: any -> None { setMerchant(e.target.value); }}
+                        placeholder="Merchant"
+                    />
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={lambda e: any -> None { setDate(e.target.value); }}
+                        placeholder="Date"
+                    />
+                    <button
+                        type="button"
+                        onClick={lambda -> None { await addManualExpense(); }}
+                    > Add Expense Manually </button>
+                    <button
+                        type="button"
+                        onClick={lambda -> None { setCurrentForm(""); }}
+                    > Cancel </button>
+                </div>;
+            } elif currentForm == "text" {
+                return <div>
+                    <h3> Add Expense from Text Description </h3>
+                    <textarea
+                        value={textDescription}
+                        onChange={lambda e: any -> None { setTextDescription(e.target.value); }}
+                        placeholder="Enter expense description..."
+                    ></textarea>
+                    <button
+                        type="button"
+                        onClick={lambda -> None { await addExpenseFromText(); }}
+                    > Add Expense from Text </button>
+                    <button
+                        type="button"
+                        onClick={lambda -> None { setCurrentForm(""); }}
+                    > Cancel </button>
+                </div>;
+            } elif currentForm == "image" {
+                return <div>
+                    <h3> Add Expense from Receipt Image </h3>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        onChange={lambda e: any -> None { setImageFile(e.target.files[0]); }}
+                    />
+                    <button
+                        type="button"
+                        onClick={lambda -> None { await addExpenseFromImage(); }}
+                    > Add Expense from Image </button>
+                    <button
+                        type="button"
+                        onClick={lambda -> None { setCurrentForm(""); }}
+                    > Cancel </button>
+                </div>;
+            } else {
+                return <p> Select an option to add an expense. </p>;
+            }
+        }
     }
+            # Add UI here to render dashboard, forms, and query response
 }
