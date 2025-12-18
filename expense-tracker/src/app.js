@@ -34,17 +34,17 @@ function app() {
     async function loadData() {
       let init_result = await __jacSpawn("init_graph", "", {});
       let dashboard_result = await __jacSpawn("get_dashboard_data", "", {});
-      if (dashboard_result.reports && dashboard_result.reports.length > 0) {
+      if (dashboard_result && dashboard_result.reports && dashboard_result.reports.length > 0) {
         setDashboardData(dashboard_result.reports[0]);
       } else {
-        let response = null;
+        setDashboardData({});
       }
     }
     loadData();
   }, []);
   async function refreshDashboard() {
     let dashboard_result = await __jacSpawn("get_dashboard_data", "", {});
-    if (dashboard_result.reports && dashboard_result.reports.length > 0) {
+    if (dashboard_result && dashboard_result.reports && dashboard_result.reports.length > 0) {
       setDashboardData(dashboard_result.reports[0]);
     }
   }
@@ -53,7 +53,7 @@ function app() {
       return;
     }
     let query_result = await __jacSpawn("query_expenses", "", {"query": query, "conversation_context": {}});
-    if (query_result.reports && query_result.reports.length > 0) {
+    if (query_result && query_result.reports && query_result.reports.length > 0) {
       setQueryResponse(query_result.reports[0].response);
     } else {
       setQueryResponse(null);
@@ -90,23 +90,36 @@ function app() {
     await refreshDashboard();
   }
   function renderDashboard() {
-    if (!dashboardData) {
-      return __jacJsx("div", {"style": cardStyle}, [__jacJsx("div", {"style": {"textAlign": "center", "padding": "40px", "color": colors.darkGray}}, [__jacJsx("h3", {}, ["Loading dashboard..."])])]);
+    if (!dashboardData || Object.keys(dashboardData).length === 0) {
+      return __jacJsx("div", {"style": cardStyle}, [__jacJsx("div", {"style": {"textAlign": "center", "padding": "40px", "color": colors.darkGray}}, [__jacJsx("h3", {}, ["No data available"]), __jacJsx("p", {}, ["Start by adding your first expense!"])])]);
     }
-    let totalAllTime = dashboardData.total_expenses_usd ? String(dashboardData.total_expenses_usd) : "0.00";
-    let month = "month" in dashboardData ? dashboardData.month : "Unknown";
-    let biggestCategory = "biggest_category" in dashboardData && dashboardData.biggest_category ? dashboardData.biggest_category : "N/A";
-    let biggestAmount = "biggest_amount" in dashboardData ? String(dashboardData.biggest_amount) : "0.00";
-    let categoryBreakdown = "category_breakdown" in dashboardData ? dashboardData.category_breakdown : {};
+    let totalAllTime = String(dashboardData.total_expenses_usd || 0);
+    let month = dashboardData.month || "Unknown";
+    let biggestCategory = dashboardData.biggest_category || "N/A";
+    let biggestAmount = String(dashboardData.biggest_amount || 0);
+    let categoryBreakdown = {};
+    if (dashboardData.category_breakdown) {
+      categoryBreakdown = dashboardData.category_breakdown;
+    }
     let categoryCards = [];
     if (categoryBreakdown) {
-      for (const _item of Object.entries(categoryBreakdown)) {
-        let expenseText = String(data["count"]) + " expense" + data["count"] !== 1 ? "s" : "";
-        categoryCards.append(__jacJsx("div", {"key": catName, "style": categoryCardStyle}, [__jacJsx("div", {"style": {"fontSize": "18px", "fontWeight": "600", "color": colors.primary, "marginBottom": "8px"}}, [catName]), __jacJsx("div", {"style": {"fontSize": "24px", "fontWeight": "bold", "color": colors.success}}, ["$", String(data["total"])]), __jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray, "marginTop": "4px"}}, [expenseText])]));
+      let categoryKeys = Object.keys(categoryBreakdown);
+      for (const catName of categoryKeys) {
+        let catData = categoryBreakdown[catName];
+        if (catData && catData["count"] >= 0) {
+          let catTotal = String(catData["total"]);
+          let catCount = catData["count"];
+          let expenseSuffix = "s";
+          if (catCount === 1) {
+            expenseSuffix = "";
+          }
+          let expenseText = String(catCount) + " expense" + expenseSuffix;
+          categoryCards.push(__jacJsx("div", {"key": catName, "style": categoryCardStyle}, [__jacJsx("div", {"style": {"fontSize": "18px", "fontWeight": "600", "color": colors.primary, "marginBottom": "8px"}}, [catName]), __jacJsx("div", {"style": {"fontSize": "24px", "fontWeight": "bold", "color": colors.success}}, ["$", catTotal]), __jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray, "marginTop": "4px"}}, [expenseText])]));
+        }
       }
     }
     let categorySection = null;
-    if (categoryCards.length > 0) {
+    if (categoryCards && categoryCards.length > 0) {
       categorySection = __jacJsx("div", {"style": gridStyle}, [categoryCards]);
     } else {
       categorySection = __jacJsx("div", {"style": {"textAlign": "center", "padding": "20px", "color": colors.darkGray}}, ["No expenses recorded for this month yet."]);
@@ -170,7 +183,33 @@ function app() {
     };
     let responseSection = null;
     if (queryResponse) {
-      responseSection = __jacJsx("div", {"style": {"marginTop": "24px", "padding": "20px", "backgroundColor": colors.background, "borderRadius": "8px", "borderLeft": "4px solid " + colors.success}}, [__jacJsx("h4", {"style": {"marginTop": "0", "color": colors.primary}}, ["Response:"]), __jacJsx("div", {"style": {"color": colors.text, "lineHeight": "1.6"}}, [queryResponse])]);
+      let insightsList = null;
+      if (queryResponse.insights && queryResponse.insights.length > 0) {
+        let insightItems = [];
+        for (const insight of queryResponse.insights) {
+          insightItems.push(__jacJsx("li", {"key": insight, "style": {"marginBottom": "8px", "color": colors.text}}, [insight]));
+        }
+        insightsList = __jacJsx("div", {"style": {"marginTop": "16px"}}, [__jacJsx("h5", {"style": {"color": colors.primary, "marginBottom": "8px"}}, ["Key Insights:"]), __jacJsx("ul", {"style": {"marginLeft": "20px"}}, [insightItems])]);
+      }
+      let categoryBreakdownSection = null;
+      if (queryResponse.categorical_breakdown && Object.keys(queryResponse.categorical_breakdown).length > 0) {
+        let breakdownItems = [];
+        let categoryKeys = Object.keys(queryResponse.categorical_breakdown);
+        for (const catName of categoryKeys) {
+          let catAmount = queryResponse.categorical_breakdown[catName];
+          breakdownItems.push(__jacJsx("div", {"key": catName, "style": {"display": "flex", "justifyContent": "space-between", "padding": "8px", "backgroundColor": colors.white, "borderRadius": "4px", "marginBottom": "8px"}}, [__jacJsx("span", {"style": {"fontWeight": "600", "color": colors.primary}}, [catName]), __jacJsx("span", {"style": {"color": colors.success}}, ["$", String(catAmount)])]));
+        }
+        categoryBreakdownSection = __jacJsx("div", {"style": {"marginTop": "16px"}}, [__jacJsx("h5", {"style": {"color": colors.primary, "marginBottom": "8px"}}, ["Category Breakdown:"]), breakdownItems]);
+      }
+      let statsSection = null;
+      if (queryResponse.count >= 0) {
+        statsSection = __jacJsx("div", {"style": {"marginTop": "16px", "padding": "16px", "backgroundColor": colors.white, "borderRadius": "8px"}}, [__jacJsx("h5", {"style": {"color": colors.primary, "marginTop": "0"}}, ["Statistics:"]), __jacJsx("div", {"style": gridStyle}, [__jacJsx("div", {"style": {"textAlign": "center"}}, [__jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray}}, ["Total"]), __jacJsx("div", {"style": {"fontSize": "20px", "fontWeight": "bold", "color": colors.success}}, ["$", String(queryResponse.total_amount || 0)])]), __jacJsx("div", {"style": {"textAlign": "center"}}, [__jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray}}, ["Average"]), __jacJsx("div", {"style": {"fontSize": "20px", "fontWeight": "bold", "color": colors.secondary}}, ["$", String(queryResponse.average_amount || 0)])]), __jacJsx("div", {"style": {"textAlign": "center"}}, [__jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray}}, ["Count"]), __jacJsx("div", {"style": {"fontSize": "20px", "fontWeight": "bold", "color": colors.primary}}, [String(queryResponse.count)])]), __jacJsx("div", {"style": {"textAlign": "center"}}, [__jacJsx("div", {"style": {"fontSize": "14px", "color": colors.darkGray}}, ["Max"]), __jacJsx("div", {"style": {"fontSize": "20px", "fontWeight": "bold", "color": colors.accent}}, ["$", String(queryResponse.max_amount || 0)])])])]);
+      }
+      let trendSection = null;
+      if (queryResponse.trend_analysis) {
+        trendSection = __jacJsx("div", {"style": {"marginTop": "16px", "padding": "16px", "backgroundColor": colors.white, "borderRadius": "8px"}}, [__jacJsx("h5", {"style": {"color": colors.primary, "marginTop": "0"}}, ["Trend Analysis:"]), __jacJsx("p", {"style": {"color": colors.text, "lineHeight": "1.6", "margin": "0"}}, [queryResponse.trend_analysis])]);
+      }
+      responseSection = __jacJsx("div", {"style": {"marginTop": "24px", "padding": "20px", "backgroundColor": colors.background, "borderRadius": "8px", "borderLeft": "4px solid " + colors.success}}, [__jacJsx("h4", {"style": {"marginTop": "0", "color": colors.primary}}, ["Analysis Results:"]), __jacJsx("div", {"style": {"color": colors.text, "lineHeight": "1.6", "marginBottom": "16px"}}, [queryResponse.natural_response]), statsSection, categoryBreakdownSection, trendSection, insightsList]);
     }
     return __jacJsx("div", {"style": sectionStyle}, [__jacJsx("h2", {"style": {"marginTop": "0", "color": colors.primary}}, ["Query Expenses"]), __jacJsx("p", {"style": {"marginBottom": "16px", "color": colors.darkGray}}, ["Ask questions about your expenses in natural language"]), __jacJsx("div", {"style": formGroupStyle}, [__jacJsx("input", {"type": "text", "style": inputStyle, "value": query, "onChange": e => {
       setQuery(e.target.value);

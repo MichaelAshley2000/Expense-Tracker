@@ -198,10 +198,10 @@ def app() -> any {
                 # Fetch dashboard data on component mount
                 init_result = await root spawn init_graph();
                 dashboard_result = await root spawn get_dashboard_data();
-                if dashboard_result.reports and dashboard_result.reports.length > 0 {
+                if dashboard_result and dashboard_result.reports and dashboard_result.reports.length > 0 {
                     setDashboardData(dashboard_result.reports[0]);
                 } else {
-                    response = None;
+                    setDashboardData({});
                 }
             }
             loadData();
@@ -209,7 +209,7 @@ def app() -> any {
 
         async def refreshDashboard() -> None {
             dashboard_result = await root spawn get_dashboard_data();
-            if dashboard_result.reports and dashboard_result.reports.length > 0 {
+            if dashboard_result and dashboard_result.reports and dashboard_result.reports.length > 0 {
                 setDashboardData(dashboard_result.reports[0]);
             }
         }
@@ -222,7 +222,7 @@ def app() -> any {
                 query = query,
                 conversation_context = {}
             );
-            if query_result.reports and query_result.reports.length > 0 {
+            if query_result and query_result.reports and query_result.reports.length > 0 {
                 setQueryResponse(query_result.reports[0].response);
             } else {
                 setQueryResponse(None);
@@ -279,46 +279,61 @@ def app() -> any {
         }
 
         def renderDashboard() -> any {
-            if not dashboardData {
+            # Check if dashboardData exists and has actual content
+            if not dashboardData or Object.keys(dashboardData).length == 0 {
                 return (
                     <div style={cardStyle}>
                         <div style={{"textAlign": "center", "padding": "40px", "color": colors.darkGray}}>
-                            <h3>Loading dashboard...</h3>
+                            <h3>No data available</h3>
+                            <p>Start by adding your first expense!</p>
                         </div>
                     </div>
                 );
             }
             
-            totalAllTime = String(dashboardData.total_expenses_usd) if dashboardData.total_expenses_usd else "0.00";
-            month = dashboardData.month if "month" in dashboardData else "Unknown";
-            biggestCategory = dashboardData.biggest_category if "biggest_category" in dashboardData and dashboardData.biggest_category else "N/A";
-            biggestAmount = String(dashboardData.biggest_amount) if "biggest_amount" in dashboardData else "0.00";
-            categoryBreakdown = dashboardData.category_breakdown if "category_breakdown" in dashboardData else {};
+            totalAllTime = String(dashboardData.total_expenses_usd || 0);
+            month = dashboardData.month || "Unknown";
+            biggestCategory = dashboardData.biggest_category || "N/A";
+            biggestAmount = String(dashboardData.biggest_amount || 0);
+            categoryBreakdown = {};
+            if dashboardData.category_breakdown {
+                categoryBreakdown = dashboardData.category_breakdown;
+            }
 
             # Build category cards
             categoryCards = [];
             if categoryBreakdown {
-                for (catName, data) in Object.entries(categoryBreakdown) {
-                    expenseText = String(data["count"]) + " expense" + ("s" if data["count"] != 1 else "");
-                    categoryCards.append(
-                        <div key={catName} style={categoryCardStyle}>
-                            <div style={{"fontSize": "18px", "fontWeight": "600", "color": colors.primary, "marginBottom": "8px"}}>
-                                {catName}
+                categoryKeys = Object.keys(categoryBreakdown);
+                for catName in categoryKeys {
+                    catData = categoryBreakdown[catName];
+                    if catData and catData["count"] >= 0 {
+                        catTotal = String(catData["total"]);
+                        catCount = catData["count"];
+                        expenseSuffix = "s";
+                        if catCount == 1 {
+                            expenseSuffix = "";
+                        }
+                        expenseText = String(catCount) + " expense" + expenseSuffix;
+                        categoryCards.push(
+                            <div key={catName} style={categoryCardStyle}>
+                                <div style={{"fontSize": "18px", "fontWeight": "600", "color": colors.primary, "marginBottom": "8px"}}>
+                                    {catName}
+                                </div>
+                                <div style={{"fontSize": "24px", "fontWeight": "bold", "color": colors.success}}>
+                                    ${catTotal}
+                                </div>
+                                <div style={{"fontSize": "14px", "color": colors.darkGray, "marginTop": "4px"}}>
+                                    {expenseText}
+                                </div>
                             </div>
-                            <div style={{"fontSize": "24px", "fontWeight": "bold", "color": colors.success}}>
-                                ${String(data["total"])}
-                            </div>
-                            <div style={{"fontSize": "14px", "color": colors.darkGray, "marginTop": "4px"}}>
-                                {expenseText}
-                            </div>
-                        </div>
-                    );
+                        );
+                    }
                 }
             }
 
             # Build category breakdown section
             categorySection = None;
-            if categoryCards.length > 0 {
+            if categoryCards and categoryCards.length > 0 {
                 categorySection = <div style={gridStyle}>{categoryCards}</div>;
             } else {
                 categorySection = (
@@ -510,12 +525,96 @@ def app() -> any {
             # Build query response section
             responseSection = None;
             if queryResponse {
+                # Build insights list
+                insightsList = None;
+                if queryResponse.insights and queryResponse.insights.length > 0 {
+                    insightItems = [];
+                    for insight in queryResponse.insights {
+                        insightItems.push(
+                            <li key={insight} style={{"marginBottom": "8px", "color": colors.text}}>
+                                {insight}
+                            </li>
+                        );
+                    }
+                    insightsList = (
+                        <div style={{"marginTop": "16px"}}>
+                            <h5 style={{"color": colors.primary, "marginBottom": "8px"}}>Key Insights:</h5>
+                            <ul style={{"marginLeft": "20px"}}>{insightItems}</ul>
+                        </div>
+                    );
+                }
+
+                # Build category breakdown
+                categoryBreakdownSection = None;
+                if queryResponse.categorical_breakdown and Object.keys(queryResponse.categorical_breakdown).length > 0 {
+                    breakdownItems = [];
+                    categoryKeys = Object.keys(queryResponse.categorical_breakdown);
+                    for catName in categoryKeys {
+                        catAmount = queryResponse.categorical_breakdown[catName];
+                        breakdownItems.push(
+                            <div key={catName} style={{"display": "flex", "justifyContent": "space-between", "padding": "8px", "backgroundColor": colors.white, "borderRadius": "4px", "marginBottom": "8px"}}>
+                                <span style={{"fontWeight": "600", "color": colors.primary}}>{catName}</span>
+                                <span style={{"color": colors.success}}>${String(catAmount)}</span>
+                            </div>
+                        );
+                    }
+                    categoryBreakdownSection = (
+                        <div style={{"marginTop": "16px"}}>
+                            <h5 style={{"color": colors.primary, "marginBottom": "8px"}}>Category Breakdown:</h5>
+                            {breakdownItems}
+                        </div>
+                    );
+                }
+
+                # Build statistics
+                statsSection = None;
+                if queryResponse.count >= 0 {
+                    statsSection = (
+                        <div style={{"marginTop": "16px", "padding": "16px", "backgroundColor": colors.white, "borderRadius": "8px"}}>
+                            <h5 style={{"color": colors.primary, "marginTop": "0"}}>Statistics:</h5>
+                            <div style={gridStyle}>
+                                <div style={{"textAlign": "center"}}>
+                                    <div style={{"fontSize": "14px", "color": colors.darkGray}}>Total</div>
+                                    <div style={{"fontSize": "20px", "fontWeight": "bold", "color": colors.success}}>${String(queryResponse.total_amount || 0)}</div>
+                                </div>
+                                <div style={{"textAlign": "center"}}>
+                                    <div style={{"fontSize": "14px", "color": colors.darkGray}}>Average</div>
+                                    <div style={{"fontSize": "20px", "fontWeight": "bold", "color": colors.secondary}}>${String(queryResponse.average_amount || 0)}</div>
+                                </div>
+                                <div style={{"textAlign": "center"}}>
+                                    <div style={{"fontSize": "14px", "color": colors.darkGray}}>Count</div>
+                                    <div style={{"fontSize": "20px", "fontWeight": "bold", "color": colors.primary}}>{String(queryResponse.count)}</div>
+                                </div>
+                                <div style={{"textAlign": "center"}}>
+                                    <div style={{"fontSize": "14px", "color": colors.darkGray}}>Max</div>
+                                    <div style={{"fontSize": "20px", "fontWeight": "bold", "color": colors.accent}}>${String(queryResponse.max_amount || 0)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                # Build trend analysis
+                trendSection = None;
+                if queryResponse.trend_analysis {
+                    trendSection = (
+                        <div style={{"marginTop": "16px", "padding": "16px", "backgroundColor": colors.white, "borderRadius": "8px"}}>
+                            <h5 style={{"color": colors.primary, "marginTop": "0"}}>Trend Analysis:</h5>
+                            <p style={{"color": colors.text, "lineHeight": "1.6", "margin": "0"}}>{queryResponse.trend_analysis}</p>
+                        </div>
+                    );
+                }
+
                 responseSection = (
                     <div style={{"marginTop": "24px", "padding": "20px", "backgroundColor": colors.background, "borderRadius": "8px", "borderLeft": "4px solid " + colors.success}}>
-                        <h4 style={{"marginTop": "0", "color": colors.primary}}>Response:</h4>
-                        <div style={{"color": colors.text, "lineHeight": "1.6"}}>
-                            {queryResponse}
+                        <h4 style={{"marginTop": "0", "color": colors.primary}}>Analysis Results:</h4>
+                        <div style={{"color": colors.text, "lineHeight": "1.6", "marginBottom": "16px"}}>
+                            {queryResponse.natural_response}
                         </div>
+                        {statsSection}
+                        {categoryBreakdownSection}
+                        {trendSection}
+                        {insightsList}
                     </div>
                 );
             }

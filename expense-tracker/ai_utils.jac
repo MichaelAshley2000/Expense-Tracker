@@ -9,6 +9,16 @@ This module provides utility functions for AI-related tasks.
  # Global AI model configuraation
  glob llm = Model(model_name="gpt-4o-mini");
 
+# defining expenses object
+obj ExpenseObject {
+    has amount: float;
+    has currency: str;
+    has date: str;
+    has category: str;
+    has merchant: str;
+    has created_at: str;
+}
+
  # Semantic objects for expense extraction from text
 
  obj ExpenseFromText {
@@ -18,6 +28,7 @@ This module provides utility functions for AI-related tasks.
      has category: str;
      has merchant: str;
      has confidence: float;
+     has created_at: str;
  }
 
  sem ExpenseFromText = "Extract expense details from text description including amount, currency, date, category, and merchant. Provide confidence score.";
@@ -69,7 +80,7 @@ def parse_natural_language_query(
 
  obj QueryResponse {
    has query: str;
-   has expenses: list[dict];
+   has expenses: list[ExpenseObject];
    has natural_response: str;
    has operation_performed: str;
    has conversation_continuation: str;
@@ -95,7 +106,7 @@ Handle all types of queries including comparisons, analyses, and summaries. Prov
 
 def process_query_response(
     parsed_query: QueryParameters,
-    expenses: list[dict],
+    expenses: list[ExpenseObject],
  ) -> QueryResponse by llm();
 
  # Helper function to extract expense from image file path

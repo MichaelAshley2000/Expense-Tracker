@@ -10,7 +10,8 @@ import from ai_utils {
     extract_expense_from_image_file,
     extract_expense_from_text,
     parse_natural_language_query,
-    process_query_response
+    process_query_response,
+    ExpenseObject
 }
 
 # Load environment variables from .env file
@@ -190,11 +191,11 @@ walker get_dashboard_data {
             cat_expenses = [];
 
             # Sum expenses for the current month in this category
-            for exp in [-->](`?Expense) {
+            for exp in [cat-->](`?Expense) {
                 # Filter by current month
                 if exp.date.startswith(current_month) {
-                    cat_total += exp.amount_usd;
-                    total_expenses += exp.amount_usd;
+                    cat_total += float(exp.amount_usd) if isinstance(exp.amount_usd, str) else exp.amount_usd;
+                    total_expenses += float(exp.amount_usd) if isinstance(exp.amount_usd, str) else exp.amount_usd;
                     cat_expenses.append({
                         "amount": exp.amount,
                         "merchant": exp.merchant,
@@ -248,9 +249,9 @@ walker get_expenses_by_category {
 
         # Find the matching category node
         for cat in [-->](`?Category) {
-            if cat.category_type.name == self.category_name.upper() {
+            if cat.category_type.name == self.category_name {
                 # Get all expenses in this category
-                for exp in [-->](`?Expense) {
+                for exp in [cat-->](`?Expense) {
                     expenses.append({
                         "amount": exp.amount,
                         "currency": exp.currency,
@@ -304,9 +305,9 @@ walker add_expense_from_image {
 
         # Create expense node
         new_expense = target_category ++> Expense(
-            amount = expense_data.amount,
+            amount = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,
             currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
-            amount_usd = expense_data.amount,  # Placeholder for conversion logic
+            amount_usd = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,  # Placeholder for conversion logic
             merchant = expense_data.merchant,
             date = expense_data.date,
             created_at = get_current_datetime()
@@ -357,9 +358,9 @@ walker add_expense_from_text {
 
         # Create expense node
         new_expense = target_category ++> Expense(
-            amount = expense_data.amount,
+            amount = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,
             currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
-            amount_usd = expense_data.amount,  # Placeholder for conversion logic
+            amount_usd = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,  # Placeholder for conversion logic
             merchant = expense_data.merchant,
             date = expense_data.date,
             created_at = get_current_datetime()
@@ -392,20 +393,21 @@ walker query_expenses {
         all_expenses = [];
 
         for cat in [-->](`?Category) {
-            for exp in [-->](`?Expense) {
-                all_expenses.append({
-                    "amount": exp.amount,
-                    "currency": exp.currency,
-                    "merchant": exp.merchant,
-                    "date": exp.date,
-                    "category": cat.name,
-                    "created_at": exp.created_at
-                });
+            for exp in [cat-->](`?Expense) {
+                all_expenses.append(ExpenseObject(
+                    amount = exp.amount,
+                    currency = exp.currency,
+                    merchant = exp.merchant,
+                    date = exp.date,
+                    category = cat.name,
+                    created_at = exp.created_at
+                ));
             }
         };
 
         # Parse query parameters using AI
         parsed_query = parse_natural_language_query(self.query, self.conversation_context);
+        
         # Process the respone using the query parameters to filter and analyze expenses
         ai_response = process_query_response(parsed_query, all_expenses);
 
