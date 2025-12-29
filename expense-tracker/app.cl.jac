@@ -268,14 +268,30 @@ def app() -> any {
             if not imageFile {
                 return;
             }
-            add_result = await root spawn add_expense_from_image(
-                image_path = imageFile.path
-            );
-            # Clear form and refresh dashboard
-            setImageFile(None);
-            setCurrentForm("");
-
-            await refreshDashboard();
+            
+            # Convert the file to base64 using FileReader
+            def handleFileRead(base64Data: str) -> None {
+                async def processImage() -> None {
+                    add_result = await root spawn add_expense_from_image(
+                        image_path = base64Data
+                    );
+                    # Clear form and refresh dashboard
+                    setImageFile(None);
+                    setCurrentForm("");
+                    await refreshDashboard();
+                }
+                processImage();
+            }
+            
+            # Use Reflect.construct to instantiate FileReader
+            reader = Reflect.construct(FileReader, []);
+            reader.onload = lambda e: any -> None {
+                handleFileRead(e.target.result);
+            };
+            reader.onerror = lambda e: any -> None {
+                console.error("[ERROR] FileReader error:", e);
+            };
+            reader.readAsDataURL(imageFile);
         }
 
         def renderDashboard() -> any {

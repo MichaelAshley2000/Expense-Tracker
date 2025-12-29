@@ -284,11 +284,12 @@ walker add_expense_from_image {
     can create_expense with User entry {
         # Extract expense details from image
         expense_data = extract_expense_from_image_file(self.image_path);
+        expense_date = expense_data.date if expense_data.date else get_current_date();
 
         # Find the matching category node (default to OTHER)
         target_category = None;
         for cat in [-->](`?Category) {
-            if expense_data.category.upper() == cat.name {
+            if expense_data.category == cat.name {
                 target_category = cat;
                 break;
             }
@@ -309,7 +310,7 @@ walker add_expense_from_image {
             currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
             amount_usd = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,  # Placeholder for conversion logic
             merchant = expense_data.merchant,
-            date = expense_data.date,
+            date = expense_date,
             created_at = get_current_datetime()
         );
 
@@ -336,12 +337,13 @@ walker add_expense_from_text {
 
     can create_expense with User entry {
         # Extract expense details from text
-        expense_data = extract_expense_from_text(self.description);
+        expense_data = extract_expense_from_text(self.description, current_date=get_current_date());
+        expense_date = expense_data.date if expense_data.date else get_current_date();
 
         # Find the matching category node (default to OTHER)
         target_category = None;
         for cat in [-->](`?Category) {
-            if expense_data.category.upper() == cat.name {
+            if expense_data.category == cat.name {
                 target_category = cat;
                 break;
             }
@@ -362,7 +364,7 @@ walker add_expense_from_text {
             currency = Currency[expense_data.currency] if expense_data.currency in Currency else Currency.USD,
             amount_usd = float(expense_data.amount) if isinstance(expense_data.amount, str) else expense_data.amount,  # Placeholder for conversion logic
             merchant = expense_data.merchant,
-            date = expense_data.date,
+            date = expense_date,
             created_at = get_current_datetime()
         );
 

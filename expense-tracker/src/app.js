@@ -84,10 +84,23 @@ function app() {
     if (!imageFile) {
       return;
     }
-    let add_result = await __jacSpawn("add_expense_from_image", "", {"image_path": imageFile.path});
-    setImageFile(null);
-    setCurrentForm("");
-    await refreshDashboard();
+    function handleFileRead(base64Data) {
+      async function processImage() {
+        let add_result = await __jacSpawn("add_expense_from_image", "", {"image_path": base64Data});
+        setImageFile(null);
+        setCurrentForm("");
+        await refreshDashboard();
+      }
+      processImage();
+    }
+    let reader = Reflect.construct(FileReader, []);
+    reader.onload = e => {
+      handleFileRead(e.target.result);
+    };
+    reader.onerror = e => {
+      console.error("[ERROR] FileReader error:", e);
+    };
+    reader.readAsDataURL(imageFile);
   }
   function renderDashboard() {
     if (!dashboardData || Object.keys(dashboardData).length === 0) {

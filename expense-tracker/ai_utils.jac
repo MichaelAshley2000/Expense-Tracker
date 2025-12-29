@@ -5,6 +5,7 @@ This module provides utility functions for AI-related tasks.
 
  import os;
  import from byllm.lib {Image, Model}
+ import from utils {get_current_date, get_current_datetime}
 
  # Global AI model configuraation
  glob llm = Model(model_name="gpt-4o-mini");
@@ -31,10 +32,11 @@ obj ExpenseObject {
      has created_at: str;
  }
 
- sem ExpenseFromText = "Extract expense details from text description including amount, currency, date, category, and merchant. Provide confidence score.";
+ sem ExpenseFromText = "Extract expense details from text description including amount, currency, date, category, and merchant. For dates not explicitly mentioned, infer from context and use the curret date provided in the input to calculate relative dates.";
 
  def extract_expense_from_text(
-    text: str
+    text: str,
+    current_date: str = ""
  ) -> ExpenseFromText by llm();
 
  # Semantic object for expense extraction from image
@@ -48,10 +50,11 @@ obj ExpenseObject {
      has confidence: float;
  }
 
- sem ExpenseFromImage = "Extract expense details from receipt image including amount, currency, date, category, and merchant. Provide confidence score.";
+ sem ExpenseFromImage = "Extract expense details from receipt image including amount, currency, date, category, and merchant. For dates, use the current date provided in the input to calculate relative dates if not explicitly mentioned. Provide confidence score.";
 
 def extract_expense_from_image(
-    image: Image
+    image: Image,
+    current_date: str = ""
  ) -> ExpenseFromImage by llm();
 
 # Semantic object for natural language queries
@@ -113,15 +116,8 @@ def process_query_response(
 
 def extract_expense_from_image_file(
     image_path: str
- ) -> dict {
-    image = Image(path=image_path);
-    expense = extract_expense_from_image(image);
-    return {
-        "amount": expense.amount,
-        "currency": expense.currency,
-        "date": expense.date,
-        "category": expense.category,
-        "merchant": expense.merchant,
-        "confidence": expense.confidence
-    };
+ ) -> ExpenseFromImage {
+     img = Image(url = image_path);
+     expense = extract_expense_from_image(img, current_date=get_current_date());
+     return expense;
  }
